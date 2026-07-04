@@ -1,4 +1,4 @@
-package com.pixelmosaic.benchmark;
+package com.pixelmosaic.pipeline;
 
 /**
  * Pure static helpers for the bitwise pixel packer. No Spring, no external deps.

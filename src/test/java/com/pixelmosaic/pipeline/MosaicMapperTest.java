@@ -1,6 +1,5 @@
 package com.pixelmosaic.pipeline;
 
-import com.pixelmosaic.benchmark.PixelUtils;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;

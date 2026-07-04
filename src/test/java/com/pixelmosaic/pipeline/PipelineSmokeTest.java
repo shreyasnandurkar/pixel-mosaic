@@ -2,7 +2,6 @@ package com.pixelmosaic.pipeline;
 
 import ai.onnxruntime.OrtEnvironment;
 import ai.onnxruntime.OrtSession;
-import com.pixelmosaic.benchmark.PixelUtils;
 import com.pixelmosaic.config.ModelLoader;
 import com.pixelmosaic.config.OnnxSessionFactory;
 

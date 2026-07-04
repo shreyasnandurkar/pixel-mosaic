@@ -1,4 +1,4 @@
-package com.pixelmosaic.benchmark;
+package com.pixelmosaic.pipeline;
 
 import org.junit.jupiter.api.Test;
 

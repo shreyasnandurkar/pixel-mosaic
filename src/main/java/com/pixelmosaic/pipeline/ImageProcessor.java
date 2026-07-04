@@ -1,7 +1,5 @@
 package com.pixelmosaic.pipeline;
 
-import com.pixelmosaic.benchmark.PixelUtils;
-
 import java.util.BitSet;
 
 /**
