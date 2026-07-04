@@ -1,0 +1,381 @@
+:root {
+  --bg: #0a0a0f;
+  --surface: #13131a;
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #f0f0f0;
+  --text-secondary: #888;
+  --accent: #6c63ff;
+  --error: #ff6b6b;
+
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius: 4px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- Header ---------- */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.logo {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.github-link {
+  font-size: 14px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: opacity 200ms ease-out;
+}
+
+.github-link:hover {
+  opacity: 0.7;
+}
+
+/* ---------- Layout ---------- */
+main {
+  max-width: 940px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+/* ---------- Canvas ---------- */
+.canvas-section {
+  position: relative;
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  aspect-ratio: 16 / 9;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+#mosaic-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#canvas-overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.state-panel {
+  display: none;
+  position: absolute;
+  inset: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 12px;
+  padding: 24px;
+}
+
+/* Content states get a faint wash so text stays legible over the canvas */
+#state-empty,
+#state-ready,
+#state-working,
+#state-error {
+  background: rgba(10, 10, 15, 0.55);
+}
+
+.state-icon {
+  color: var(--text-secondary);
+}
+
+.state-icon--error {
+  color: var(--error);
+}
+
+.state-text {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.state-text--error {
+  color: var(--error);
+  font-weight: 500;
+}
+
+.state-subtext {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* ---------- Spinner (pure CSS) ---------- */
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- Progress bar (WORKING) ---------- */
+.progress-track {
+  width: 220px;
+  max-width: 70%;
+  height: 4px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+/* ---------- Canvas progress (ANIMATING) ---------- */
+.canvas-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: transparent;
+}
+
+.canvas-progress-fill {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+}
+
+/* ---------- Inputs ---------- */
+.inputs-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.upload-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.upload-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.card-label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.thumb-zone {
+  position: relative;
+  width: 120px;
+  height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  overflow: hidden;
+  transition: opacity 200ms ease-out;
+}
+
+.thumb-zone:hover {
+  opacity: 0.8;
+}
+
+.thumb-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+}
+
+.thumb-placeholder-text {
+  font-size: 12px;
+}
+
+.thumb-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.file-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.file-name {
+  display: inline-block;
+  max-width: 20ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.file-res {
+  color: var(--text-secondary);
+}
+
+.file-name.file-error {
+  max-width: none;
+  white-space: normal;
+  color: var(--error);
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  width: 100%;
+  padding: 12px 16px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: opacity 200ms ease-out;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.btn-ghost:hover {
+  filter: brightness(1.1);
+}
+
+/* In-overlay retry button shouldn't stretch full width */
+#btn-try-again {
+  width: auto;
+  padding: 8px 18px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- Info ---------- */
+.info-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 680px;
+}
+
+.section-heading {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+.info-section p {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.info-section strong {
+  font-weight: 600;
+}
+
+.info-link {
+  font-size: 14px;
+  color: var(--accent);
+  text-decoration: none;
+  transition: opacity 200ms ease-out;
+}
+
+.info-link:hover {
+  opacity: 0.7;
+}
+
+/* ---------- Footer ---------- */
+footer {
+  padding: 24px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border);
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 768px) {
+  .upload-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .canvas-section {
+    aspect-ratio: 16 / 9;
+  }
+
+  main {
+    padding: 24px 16px 80px;
+    gap: 32px;
+  }
+}

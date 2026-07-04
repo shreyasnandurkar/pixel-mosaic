@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pixel Mosaic</title>
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- Three.js CDN import -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <header>
+    <span class="logo">Pixel Mosaic</span>
+    <a class="github-link" href="#" target="_blank" rel="noopener noreferrer">GitHub</a>
+  </header>
+
+  <main>
+    <section class="canvas-section">
+      <canvas id="mosaic-canvas"></canvas>
+
+      <div id="canvas-overlay">
+        <!-- State 1 -->
+        <div class="state-panel" id="state-empty">
+          <svg class="state-icon" width="48" height="48" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 16.5 V4.2" />
+            <path d="M6.5 9.5 L12 4 L17.5 9.5" />
+            <path d="M3.8 18.5 c4.5 2 11.9 2 16.4 0" />
+          </svg>
+          <p class="state-text">Upload a source and target image to begin</p>
+          <p class="state-subtext">Source pixels fly to recreate the target's shape</p>
+        </div>
+
+        <!-- State 2 -->
+        <div class="state-panel" id="state-ready">
+          <p class="state-text">Ready to generate</p>
+          <p class="state-subtext">~5&ndash;8 seconds processing time</p>
+        </div>
+
+        <!-- State 3 -->
+        <div class="state-panel" id="state-working">
+          <div class="spinner" role="status" aria-label="Processing"></div>
+          <p class="state-text" id="working-text">Processing&hellip;</p>
+          <div class="progress-track">
+            <div class="progress-fill" id="working-progress-fill"></div>
+          </div>
+          <p class="state-subtext" id="working-status">Connecting&hellip;</p>
+        </div>
+
+        <!-- State 4 -->
+        <div class="state-panel" id="state-animating">
+          <div class="canvas-progress">
+            <div class="canvas-progress-fill" id="animation-progress-fill"></div>
+          </div>
+        </div>
+
+        <!-- State 5 -->
+        <div class="state-panel" id="state-done"></div>
+
+        <!-- State 6 -->
+        <div class="state-panel" id="state-error">
+          <svg class="state-icon state-icon--error" width="32" height="32" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3.2 L22 20 H2 Z" />
+            <line x1="12" y1="9.5" x2="12" y2="14" />
+            <circle cx="12" cy="17.2" r="0.6" fill="currentColor" stroke="none" />
+          </svg>
+          <p class="state-text state-text--error">Something went wrong</p>
+          <p class="state-subtext" id="error-message">The connection was interrupted. Please try again.</p>
+          <button type="button" class="btn btn-ghost" id="btn-try-again">Try again</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="inputs-section">
+      <div class="upload-cards">
+        <div class="upload-card">
+          <span class="card-label">Source</span>
+          <label class="thumb-zone" for="source-input">
+            <span class="thumb-placeholder">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              <span class="thumb-placeholder-text">Choose image</span>
+            </span>
+            <img class="thumb-img" alt="" hidden />
+          </label>
+          <input type="file" id="source-input" accept=".jpg,.jpeg,.png,.webp" hidden />
+          <p class="file-meta"><span class="file-name">No file chosen</span><span class="file-res"></span></p>
+        </div>
+
+        <div class="upload-card">
+          <span class="card-label">Target</span>
+          <label class="thumb-zone" for="target-input">
+            <span class="thumb-placeholder">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              <span class="thumb-placeholder-text">Choose image</span>
+            </span>
+            <img class="thumb-img" alt="" hidden />
+          </label>
+          <input type="file" id="target-input" accept=".jpg,.jpeg,.png,.webp" hidden />
+          <p class="file-meta"><span class="file-name">No file chosen</span><span class="file-res"></span></p>
+        </div>
+      </div>
+
+      <button type="button" class="btn btn-primary" id="btn-generate" disabled>Generate Mosaic</button>
+      <button type="button" class="btn btn-ghost" id="btn-download">Download PNG</button>
+    </section>
+
+    <section class="info-section">
+      <h2 class="section-heading">How it works</h2>
+      <p>
+        Pixel Mosaic takes two images &mdash; a <strong>Source</strong> and a <strong>Target</strong> &mdash;
+        and rebuilds the Target's shape using only the pixels that belong to the Source. No new colours are
+        invented and no blending happens: every pixel in the output is a real Source pixel, repositioned to
+        form the Target's silhouette. The Source is the palette of tiles; the Target is the blueprint that
+        decides where each tile goes.
+      </p>
+      <p>
+        The result is a five-second WebGL animation in which every pixel flies from its original position in
+        the Source to its mapped position on the Target, plus a downloadable PNG of the final frame. The
+        Target's structure is preserved with pixel-perfect fidelity, while the Source's spatial arrangement is
+        scrambled away &mdash; only its colour palette survives. Point a forest at a portrait and the portrait
+        comes back made of foliage.
+      </p>
+      <a class="info-link" href="#" target="_blank" rel="noopener noreferrer">View source on GitHub &rarr;</a>
+    </section>
+  </main>
+
+  <footer>Built with Java + WebGL</footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

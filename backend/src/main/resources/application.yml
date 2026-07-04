@@ -1,0 +1,24 @@
+server:
+  port: 8080
+  tomcat:
+    threads:
+      max: 50
+      min-spare: 10
+    connection-timeout: 10s
+
+pixelmosaic:
+  model-path: classpath:models/u2netp.onnx
+  max-concurrent: 2
+  rate-limit-per-hour: 20
+  max-image-bytes: 10485760
+  max-pixels: 2000000
+  chunk-size-bytes: 262144    # 256KB
+  # Comma-separated origin patterns. Dev defaults below; add your GitHub Pages
+  # URL (e.g. https://<user>.github.io) for production. Never ship "*".
+  allowed-origins: "http://localhost:*,http://127.0.0.1:*"
+
+logging:
+  level:
+    com.pixelmosaic: INFO
+  pattern:
+    console: "%d{HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
