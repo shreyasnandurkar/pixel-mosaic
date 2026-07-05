@@ -1,18 +1,15 @@
-// Pixel Mosaic — Day 7
-// State machine + file upload + WebSocket client + chunk reassembly + progress,
-// plus the Three.js WebGL renderer that animates the received particles.
-// Served as an ES module (needs an HTTP origin — file:// will not load modules).
-
 import * as THREE from "three";
 
 // ===========================================================================
 // SECTION 1 — Constants & Configuration
 // ===========================================================================
 const CONFIG = {
-  WS_URL: "ws://localhost:8080/ws/mosaic", // local dev
-  // Production (Day 10): "wss://YOUR_ORACLE_VM_IP:8080/ws/mosaic"
+  WS_URL:
+    location.hostname === "localhost" || location.hostname === "127.0.0.1"
+      ? "ws://localhost:8080/ws/mosaic"
+      : "wss://shreyasvn-pixel-mosaic.hf.space/ws/mosaic",
   ANIMATION_DURATION_MS: 10000,
-  HOLD_MS: 200, // pause before motion begins; expressed in ms so it stays fixed at any duration
+  HOLD_MS: 1000,
   MAX_FILE_BYTES: 10 * 1024 * 1024,
   ACCEPTED_TYPES: ["image/jpeg", "image/png", "image/webp"],
   CHUNK_SIZE: 262144,
@@ -21,10 +18,6 @@ const CONFIG = {
 };
 
 const MAGIC = 0x4d4f5301;
-
-// The backend writes both the header and the payload big-endian (Java ByteBuffer
-// default; see MosaicMapper). DataView defaults to big-endian, so we read with
-// littleEndian = false everywhere — do NOT flip this to true.
 const LITTLE_ENDIAN = false;
 
 // ===========================================================================
@@ -219,7 +212,12 @@ function connect() {
   };
 
   ws.onclose = (event) => {
-    if (currentState === STATES.WORKING) {
+    if (currentState !== STATES.WORKING) return;
+    if (event.code === 1008) {
+      setState(STATES.ERROR, {
+        reason: "You've reached the hourly request limit. Please try again later.",
+      });
+    } else {
       setState(STATES.ERROR, { reason: `Connection closed (${event.code})` });
     }
   };
@@ -260,7 +258,7 @@ function handleTextFrame(msg) {
 
 function handleBinaryFrame(data) {
   if (!headerParsed) {
-    parseHeader(data); // first binary frame is always the 32-byte header
+    parseHeader(data);
     return;
   }
 
@@ -280,7 +278,6 @@ function parseHeader(data) {
     ws.close();
     return;
   }
-  // view.getUint32(4) — protocol version, read but ignored for now
   particleCount = view.getUint32(8, LITTLE_ENDIAN);
   srcW = view.getUint32(12, LITTLE_ENDIAN);
   srcH = view.getUint32(16, LITTLE_ENDIAN);
@@ -288,6 +285,7 @@ function parseHeader(data) {
   tgtH = view.getUint32(24, LITTLE_ENDIAN);
   expectedBytes = particleCount * CONFIG.BYTES_PER_PARTICLE;
   headerParsed = true;
+  document.querySelector(".canvas-section").style.aspectRatio = `${tgtW} / ${tgtH}`;
   updateWorkingStatus("Receiving payload…");
   console.log(
     `Header parsed: ${particleCount} particles, src=${srcW}x${srcH}, tgt=${tgtW}x${tgtH}`
@@ -325,7 +323,6 @@ function onPayloadComplete(confirmedCount) {
 
   ws.close();
   setState(STATES.ANIMATING);
-  // Day 7 will hook into the ANIMATING transition to start the Three.js animation.
 }
 
 function parsePayload(buffer, count) {
@@ -362,13 +359,11 @@ function updateWorkingProgress(pct) {
 
 function startAnimationProgressBar() {
   const bar = document.getElementById("animation-progress-fill");
-  // Reset to 0 instantly so replays animate from the start, not from 100%.
   bar.style.transition = "none";
   bar.style.width = "0%";
-  void bar.offsetWidth; // force reflow before the timed transition
+  void bar.offsetWidth;
   bar.style.transition = `width ${CONFIG.ANIMATION_DURATION_MS}ms linear`;
   bar.style.width = "100%";
-  // DONE is driven by the renderer's animation completion, not a timer here.
 }
 
 // ===========================================================================
@@ -386,18 +381,15 @@ class MosaicRenderer {
   }
 
   init(data) {
-    this.dispose(); // clean up any previous render
+    this.dispose();
 
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
-      antialias: false, // particles don't need antialiasing
+      antialias: false,
       alpha: false,
       powerPreference: "high-performance",
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    // updateStyle = false: the CSS (width:100%, 16:9 box) owns the displayed
-    // size; we only drive the drawing-buffer resolution so resizing stays
-    // responsive instead of being pinned to inline px.
     this.renderer.setSize(
       this.canvas.clientWidth,
       this.canvas.clientHeight,
@@ -405,7 +397,6 @@ class MosaicRenderer {
     );
     this.renderer.setClearColor(0x0a0a0f, 1);
 
-    // Orthographic so our NDC coords map straight to the canvas.
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     this.scene = new THREE.Scene();
 
@@ -450,16 +441,12 @@ class MosaicRenderer {
       depthWrite: false,
     });
 
-    // THREE.Points (gl.POINTS) — NOT Mesh. The shaders rely on gl_PointSize and
-    // gl_PointCoord, which only exist for point primitives; a Mesh would draw
-    // triangles and render nothing from this single-vertex instanced geometry.
     this.mesh = new THREE.Points(geometry, material);
-    this.mesh.frustumCulled = false; // critical for instanced points
+    this.mesh.frustumCulled = false;
     this.scene.add(this.mesh);
   }
 
   computePointSize(count) {
-    // Denser particle fields use smaller points to limit overlap.
     const area = this.canvas.clientWidth * this.canvas.clientHeight;
     const density = count / area;
     if (density > 2) return 1.0;
@@ -563,7 +550,6 @@ class MosaicRenderer {
       this.canvas.clientHeight,
       false
     );
-    // Repaint the final frame so a resize after the animation isn't left blank.
     if (this.mesh) this.renderer.render(this.scene, this.camera);
   }
 }
@@ -617,6 +603,7 @@ document.getElementById("btn-generate").onclick = () => {
 
 document.getElementById("btn-try-again").onclick = () => {
   resetUploads();
+  document.querySelector(".canvas-section").style.aspectRatio = ""; // back to idle 16:9
   setState(STATES.EMPTY);
 };
 

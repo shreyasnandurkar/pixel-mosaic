@@ -2,18 +2,8 @@ package com.pixelmosaic.pipeline;
 
 import java.util.BitSet;
 
-/**
- * Pre-allocated working set for a single concurrent request. One instance is reused
- * across many requests (see {@link BufferPool}); {@link #reset()} cheaply prepares it
- * for the next request without zeroing the big primitive arrays — those are fully
- * overwritten before they are read.
- *
- * <p>Fields are package-private so the pipeline classes in this package can touch them
- * directly on the hot path, avoiding accessor overhead.
- */
 final class RequestBuffers {
 
-    /** Resolution cap shared with {@link ImageDecoder#MAX_PIXELS}. */
     static final int DEFAULT_MAX_PIXELS = 2_000_000;
 
     final long[] sourceData;
@@ -39,12 +29,6 @@ final class RequestBuffers {
         targetMask = new BitSet(maxPixels);
     }
 
-    /**
-     * Prepare for the next request. Clears the masks and zeros the dimension counters
-     * but deliberately leaves {@link #sourceData}/{@link #targetData} and the rasters
-     * untouched — they are rewritten end-to-end before use, so zeroing ~48&nbsp;MB here
-     * would be pure waste.
-     */
     void reset() {
         sourceMask.clear();
         targetMask.clear();

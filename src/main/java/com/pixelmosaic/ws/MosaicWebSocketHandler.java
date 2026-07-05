@@ -66,6 +66,7 @@ public class MosaicWebSocketHandler extends AbstractWebSocketHandler {
     private final ObjectMapper objectMapper;
     private final int chunkSize;
     private final long maxImageBytes;
+    private final boolean behindProxy;
 
     public MosaicWebSocketHandler(Semaphore admissionSemaphore,
                                   RateLimiterService rateLimiter,
@@ -73,7 +74,8 @@ public class MosaicWebSocketHandler extends AbstractWebSocketHandler {
                                   @Qualifier("requestExecutor") ExecutorService requestExecutor,
                                   ObjectMapper objectMapper,
                                   @Value("${pixelmosaic.chunk-size-bytes}") int chunkSize,
-                                  @Value("${pixelmosaic.max-image-bytes}") long maxImageBytes) {
+                                  @Value("${pixelmosaic.max-image-bytes}") long maxImageBytes,
+                                  @Value("${pixelmosaic.behind-proxy}") boolean behindProxy) {
         this.admissionSemaphore = admissionSemaphore;
         this.rateLimiter = rateLimiter;
         this.pipeline = pipeline;
@@ -81,12 +83,15 @@ public class MosaicWebSocketHandler extends AbstractWebSocketHandler {
         this.objectMapper = objectMapper;
         this.chunkSize = chunkSize;
         this.maxImageBytes = maxImageBytes;
+        this.behindProxy = behindProxy;
     }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         String ip = clientIp(session);
-        if (!rateLimiter.tryAcquire(ip)) {
+        if (ip == null) {
+            log.warn("Connection {}: no client IP resolved; skipping rate limit", session.getId());
+        } else if (!rateLimiter.tryAcquire(ip)) {
             log.info("Connection {} from {} rejected: rate limit exceeded", session.getId(), ip);
             session.close(new CloseStatus(1008, "rate_limit_exceeded"));
             return;
@@ -260,15 +265,17 @@ public class MosaicWebSocketHandler extends AbstractWebSocketHandler {
         return bytes;
     }
 
-    /** Prefer the first X-Forwarded-For hop (behind a proxy), else the socket address. */
-    private static String clientIp(WebSocketSession session) {
+    private String clientIp(WebSocketSession session) {
         List<String> forwarded = session.getHandshakeHeaders().get("X-Forwarded-For");
         if (forwarded != null && !forwarded.isEmpty() && !forwarded.get(0).isBlank()) {
             return forwarded.get(0).split(",")[0].trim();
         }
+        if (behindProxy) {
+            return null;
+        }
         InetSocketAddress remote = session.getRemoteAddress();
         return remote != null && remote.getAddress() != null
                 ? remote.getAddress().getHostAddress()
-                : "unknown";
+                : null;
     }
 }

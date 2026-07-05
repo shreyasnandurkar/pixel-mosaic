@@ -31,25 +31,14 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * Central wiring for the pipeline: the (expensive, shared) ONNX runtime, the bounded buffer
- * pool and worker pool, admission control, and the pipeline components themselves. The pool
- * size, semaphore permits, and buffer count are all driven from {@code application.yml} and
- * kept equal, so a thread that wins an admission permit always finds a free buffer.
- */
 @Configuration
 public class AppConfig {
 
-    /** Process-wide ONNX Runtime environment. */
     @Bean
     public OrtEnvironment ortEnvironment() {
         return OnnxSessionFactory.createEnvironment();
     }
 
-    /**
-     * Build the shared session. ONNX Runtime loads from a file path, so the model resource
-     * (which may live inside the packaged jar) is copied to a temp file first.
-     */
     @Bean
     public OrtSession ortSession(OrtEnvironment env,
                                  @Value("${pixelmosaic.model-path}") Resource modelPath)
@@ -68,8 +57,6 @@ public class AppConfig {
         return new BufferPool(maxConcurrent, maxPixels);
     }
 
-    /** CPU pool for the pipeline branches and sorts. Kept separate from {@link #requestExecutor}
-     *  so a blocked orchestrator can never starve the branches it is waiting on. */
     @Bean(destroyMethod = "shutdown")
     public ExecutorService processingPool() {
         return new ThreadPoolExecutor(
@@ -79,8 +66,6 @@ public class AppConfig {
                 daemonThreadFactory("pipeline-worker-"));
     }
 
-    /** Orchestrator pool: one blocking task per admitted request. Sized to the permit count,
-     *  so a request only lands here after winning a semaphore slot. */
     @Bean(destroyMethod = "shutdown")
     public ExecutorService requestExecutor(@Value("${pixelmosaic.max-concurrent}") int maxConcurrent) {
         return new ThreadPoolExecutor(
@@ -122,7 +107,6 @@ public class AppConfig {
         return new MosaicPipeline(imageProcessor, mosaicMapper, bufferPool, processingPool);
     }
 
-    /** CORS for the REST endpoints; the WebSocket handler sets its own allowed origins. */
     @Bean
     public WebMvcConfigurer corsConfigurer(
             @Value("${pixelmosaic.allowed-origins}") String allowedOrigins) {

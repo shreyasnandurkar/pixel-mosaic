@@ -9,11 +9,6 @@ import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 import org.springframework.web.socket.server.standard.ServletServerContainerFactoryBean;
 
-/**
- * Registers the mosaic WebSocket endpoint and raises the container's binary message buffer
- * so a full 10&nbsp;MB image arrives as a single message. Text frames stay small (only JSON
- * control messages flow that way).
- */
 @Configuration
 @EnableWebSocket
 public class WebSocketConfig implements WebSocketConfigurer {

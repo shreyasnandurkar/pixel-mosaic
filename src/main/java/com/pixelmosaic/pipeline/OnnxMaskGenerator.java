@@ -11,13 +11,6 @@ import java.nio.FloatBuffer;
 import java.util.BitSet;
 import java.util.Map;
 
-/**
- * Runs U&sup2;-NetP saliency inference over a decoded raster and turns the soft
- * mask into a binary foreground {@link BitSet}.
- *
- * <p>The {@link OrtEnvironment} and {@link OrtSession} are injected (created once at
- * startup, shared across requests). This class never creates or owns them.
- */
 public class OnnxMaskGenerator {
 
     private static final int SIZE = 320;
@@ -32,23 +25,14 @@ public class OnnxMaskGenerator {
         this.session = session;
     }
 
-    /**
-     * Produce a foreground mask for the raster.
-     *
-     * @param raster ARGB pixels, row-major, length == width * height
-     * @return BitSet of length width*height; set bits are foreground
-     */
     public BitSet generateMask(int[] raster, int width, int height) throws OrtException {
         float[] input = buildNormalizedInput(raster, width, height);
-        // ONNX Runtime reads tensors from native memory; back the input with a direct buffer.
         FloatBuffer inputBuf = ByteBuffer
                 .allocateDirect(input.length * Float.BYTES)
                 .order(ByteOrder.nativeOrder())
                 .asFloatBuffer();
         inputBuf.put(input).flip();
 
-        // Model exports name the input differently (e.g. "input" vs "input.1");
-        // bind to whatever the session actually declares.
         String inputName = session.getInputNames().iterator().next();
 
         float[] mask = new float[SIZE * SIZE];
@@ -56,7 +40,6 @@ public class OnnxMaskGenerator {
         try (OnnxTensor inputTensor = OnnxTensor.createTensor(env, inputBuf, shape);
              OrtSession.Result result = session.run(Map.of(inputName, inputTensor))) {
             OnnxTensor output = (OnnxTensor) result.get(0);
-            // Direct read from native memory — no float[][] boxing.
             FloatBuffer maskBuf = output.getFloatBuffer();
             maskBuf.get(mask);
         }
@@ -73,7 +56,6 @@ public class OnnxMaskGenerator {
         return result;
     }
 
-    /** Resize to 320x320 (nearest neighbor) and ImageNet-normalize into CHW float[]. */
     private static float[] buildNormalizedInput(int[] raster, int width, int height) {
         int[] small = nearestResize(raster, width, height, SIZE, SIZE);
         int plane = SIZE * SIZE;
@@ -90,7 +72,6 @@ public class OnnxMaskGenerator {
         return input;
     }
 
-    /** Upsample the 320x320 soft mask to full size (nearest neighbor) and threshold at 0.5. */
     private static boolean[] upsampleAndThreshold(float[] mask, int width, int height) {
         boolean[] fg = new boolean[width * height];
         for (int py = 0; py < height; py++) {
@@ -117,8 +98,6 @@ public class OnnxMaskGenerator {
         return dst;
     }
 
-    // --- Morphology (3x3 square element, replicate borders) ----------------
-
     private static boolean[] open(boolean[] in, int w, int h) {
         return dilate(erode(in, w, h), w, h);
     }
@@ -127,7 +106,6 @@ public class OnnxMaskGenerator {
         return erode(dilate(in, w, h), w, h);
     }
 
-    /** A pixel survives only if every pixel in its 3x3 neighborhood is set. */
     private static boolean[] erode(boolean[] in, int w, int h) {
         boolean[] out = new boolean[w * h];
         for (int y = 0; y < h; y++) {
@@ -138,7 +116,6 @@ public class OnnxMaskGenerator {
         return out;
     }
 
-    /** A pixel is set if any pixel in its 3x3 neighborhood is set. */
     private static boolean[] dilate(boolean[] in, int w, int h) {
         boolean[] out = new boolean[w * h];
         for (int y = 0; y < h; y++) {
@@ -149,10 +126,6 @@ public class OnnxMaskGenerator {
         return out;
     }
 
-    /**
-     * Scan the 3x3 neighborhood with replicate-border clamping.
-     * If {@code requireAll} is true this is erosion (AND); otherwise dilation (OR).
-     */
     private static boolean neighborhood(boolean[] in, int w, int h, int x, int y, boolean requireAll) {
         for (int dy = -1; dy <= 1; dy++) {
             int ny = clamp(y + dy, h);

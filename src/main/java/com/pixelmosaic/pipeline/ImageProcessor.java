@@ -2,12 +2,6 @@ package com.pixelmosaic.pipeline;
 
 import java.util.BitSet;
 
-/**
- * Takes one branch of a request (the source image OR the target image) from raw encoded
- * bytes all the way to a packed {@code long[]} sitting in a {@link RequestBuffers} slot:
- * decode &rarr; saliency mask &rarr; bitwise pack. Stateless and thread-safe, so the two
- * branches of one request can run on it concurrently.
- */
 public final class ImageProcessor {
 
     private final ImageDecoder decoder;
@@ -18,14 +12,6 @@ public final class ImageProcessor {
         this.maskGenerator = maskGenerator;
     }
 
-    /**
-     * Process one image branch into {@code buf}.
-     *
-     * @param imageBytes encoded image (JPEG/PNG/WebP)
-     * @param buf        the request's working buffers
-     * @param isSource   true to fill the source lane, false for the target lane
-     * @return the number of pixels written (width &times; height after any downscale)
-     */
     public int process(byte[] imageBytes, RequestBuffers buf, boolean isSource) throws Exception {
         int[] dimensions = new int[2];
         int[] decoded = decoder.decodeToRaster(imageBytes, dimensions);

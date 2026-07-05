@@ -1,40 +1,17 @@
 package com.pixelmosaic.pipeline;
 
 import javax.imageio.ImageIO;
-import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
-import java.awt.image.DataBuffer;
-import java.awt.image.DataBufferByte;
-import java.awt.image.DataBufferInt;
-import java.awt.image.WritableRaster;
+import java.awt.*;
+import java.awt.image.*;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
-/**
- * Decodes JPEG / PNG / WebP bytes into a packed ARGB {@code int[]} raster without
- * ever calling {@link BufferedImage#getRGB} (banned on the hot path). Pixel data
- * is read straight from the backing {@link DataBuffer}; unusual buffer/image types
- * fall back to a one-shot draw into a known TYPE_INT_ARGB image.
- *
- * <p>Images larger than {@link #MAX_PIXELS} are bilinearly downscaled to fit the
- * 2-megapixel envelope while preserving aspect ratio.
- */
 public final class ImageDecoder {
 
-    /** Hard input cap: 10 MB. */
     public static final int MAX_BYTES = 10_485_760;
-    /** Resolution cap: 2 megapixels. */
     public static final int MAX_PIXELS = 2_000_000;
-    /** Per-side cap: X/Y are packed into 16 bits downstream, so neither side may exceed this. */
     public static final int MAX_DIMENSION = 65_535;
 
-    /**
-     * Decode image bytes to an ARGB raster.
-     *
-     * @param imageBytes    encoded image (JPEG/PNG/WebP)
-     * @param dimensionsOut int[2]; on return holds [width, height] of the raster
-     * @return ARGB pixels, row-major, length == width * height
-     */
     public int[] decodeToRaster(byte[] imageBytes, int[] dimensionsOut) throws IOException {
         if (imageBytes == null) {
             throw new IllegalArgumentException("imageBytes must not be null");
@@ -57,7 +34,6 @@ public final class ImageDecoder {
         int height = image.getHeight();
         int[] argb = extractArgb(image, width, height);
 
-        // Downscale to fit both the pixel-count cap and the per-side cap, whichever binds harder.
         double scale = 1.0;
         if ((long) width * height > MAX_PIXELS) {
             scale = Math.min(scale, Math.sqrt((double) MAX_PIXELS / ((double) width * height)));
@@ -69,8 +45,8 @@ public final class ImageDecoder {
             scale = Math.min(scale, (double) MAX_DIMENSION / height);
         }
         if (scale < 1.0) {
-            int dw = Math.min(MAX_DIMENSION, Math.max(1, (int) Math.floor(width * scale)));
-            int dh = Math.min(MAX_DIMENSION, Math.max(1, (int) Math.floor(height * scale)));
+            int dw = Math.clamp((int) Math.floor(width * scale), 1, MAX_DIMENSION);
+            int dh = Math.clamp((int) Math.floor(height * scale), 1, MAX_DIMENSION);
             argb = bilinearResize(argb, width, height, dw, dh);
             width = dw;
             height = dh;
@@ -81,7 +57,6 @@ public final class ImageDecoder {
         return argb;
     }
 
-    /** Pull ARGB ints from the raster's backing buffer; no getRGB(). */
     private static int[] extractArgb(BufferedImage image, int width, int height) {
         WritableRaster raster = image.getRaster();
         DataBuffer db = raster.getDataBuffer();
@@ -90,17 +65,18 @@ public final class ImageDecoder {
 
         if (db instanceof DataBufferInt dbi) {
             int[] data = dbi.getData();
-            switch (image.getType()) {
-                case BufferedImage.TYPE_INT_ARGB:
-                case BufferedImage.TYPE_INT_ARGB_PRE:
+            return switch (image.getType()) {
+                case BufferedImage.TYPE_INT_ARGB, BufferedImage.TYPE_INT_ARGB_PRE -> {
                     System.arraycopy(data, 0, out, 0, n);
-                    return out;
-                case BufferedImage.TYPE_INT_RGB:
+                    yield out;
+                }
+                case BufferedImage.TYPE_INT_RGB -> {
                     for (int i = 0; i < n; i++) {
                         out[i] = 0xFF000000 | (data[i] & 0x00FFFFFF);
                     }
-                    return out;
-                case BufferedImage.TYPE_INT_BGR:
+                    yield out;
+                }
+                case BufferedImage.TYPE_INT_BGR -> {
                     for (int i = 0; i < n; i++) {
                         int v = data[i];
                         int b = (v >> 16) & 0xFF;
@@ -108,25 +84,25 @@ public final class ImageDecoder {
                         int r = v & 0xFF;
                         out[i] = 0xFF000000 | (r << 16) | (g << 8) | b;
                     }
-                    return out;
-                default:
-                    return normalizeViaDraw(image, width, height);
-            }
+                    yield out;
+                }
+                default -> normalizeViaDraw(image, width, height);
+            };
         }
 
         if (db instanceof DataBufferByte dbb) {
             byte[] data = dbb.getData();
-            switch (image.getType()) {
-                case BufferedImage.TYPE_3BYTE_BGR:
+            return switch (image.getType()) {
+                case BufferedImage.TYPE_3BYTE_BGR -> {
                     for (int i = 0, p = 0; i < n; i++) {
                         int b = data[p++] & 0xFF;
                         int g = data[p++] & 0xFF;
                         int r = data[p++] & 0xFF;
                         out[i] = 0xFF000000 | (r << 16) | (g << 8) | b;
                     }
-                    return out;
-                case BufferedImage.TYPE_4BYTE_ABGR:
-                case BufferedImage.TYPE_4BYTE_ABGR_PRE:
+                    yield out;
+                }
+                case BufferedImage.TYPE_4BYTE_ABGR, BufferedImage.TYPE_4BYTE_ABGR_PRE -> {
                     for (int i = 0, p = 0; i < n; i++) {
                         int a = data[p++] & 0xFF;
                         int b = data[p++] & 0xFF;
@@ -134,23 +110,22 @@ public final class ImageDecoder {
                         int r = data[p++] & 0xFF;
                         out[i] = (a << 24) | (r << 16) | (g << 8) | b;
                     }
-                    return out;
-                case BufferedImage.TYPE_BYTE_GRAY:
+                    yield out;
+                }
+                case BufferedImage.TYPE_BYTE_GRAY -> {
                     for (int i = 0; i < n; i++) {
                         int v = data[i] & 0xFF;
                         out[i] = 0xFF000000 | (v << 16) | (v << 8) | v;
                     }
-                    return out;
-                default:
-                    return normalizeViaDraw(image, width, height);
-            }
+                    yield out;
+                }
+                default -> normalizeViaDraw(image, width, height);
+            };
         }
 
-        // Unknown DataBuffer type (e.g. ushort): normalize without getRGB().
         return normalizeViaDraw(image, width, height);
     }
 
-    /** Last-resort conversion: render into a TYPE_INT_ARGB image and read its int buffer. */
     private static int[] normalizeViaDraw(BufferedImage image, int width, int height) {
         BufferedImage argbImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = argbImage.createGraphics();
@@ -165,11 +140,6 @@ public final class ImageDecoder {
         return out;
     }
 
-    /**
-     * Bilinear resize of an ARGB raster. Uses corner-aligned sampling: output corners
-     * map exactly onto source corners and interior pixels are interpolated from the
-     * four nearest source samples, weighted by fractional position.
-     */
     public static int[] bilinearResize(int[] src, int sw, int sh, int dw, int dh) {
         int[] dst = new int[dw * dh];
         if (dw <= 0 || dh <= 0 || sw <= 0 || sh <= 0) {
@@ -201,7 +171,6 @@ public final class ImageDecoder {
         return dst;
     }
 
-    /** Bilinearly blend four ARGB samples; rounds each channel to nearest. */
     private static int lerp2d(int c00, int c10, int c01, int c11, float fx, float fy) {
         int a = channelLerp(c00, c10, c01, c11, fx, fy, 24);
         int r = channelLerp(c00, c10, c01, c11, fx, fy, 16);

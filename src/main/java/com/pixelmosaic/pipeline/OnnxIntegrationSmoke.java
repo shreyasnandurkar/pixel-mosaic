@@ -7,16 +7,6 @@ import com.pixelmosaic.config.OnnxSessionFactory;
 
 import java.util.BitSet;
 
-/**
- * Standalone smoke test (not a JUnit test) for the real ONNX path. Runs end-to-end
- * inference if the model is present; otherwise prints guidance and exits cleanly.
- *
- * <p>Run with:
- * <pre>
- *   java -cp backend/target/classes;&lt;onnxruntime + deps&gt; \
- *        com.pixelmosaic.pipeline.OnnxIntegrationSmoke
- * </pre>
- */
 public final class OnnxIntegrationSmoke {
 
     private static final int W = 100;
@@ -55,7 +45,6 @@ public final class OnnxIntegrationSmoke {
         }
     }
 
-    /** A bright centered disc on a dark background — gives the saliency model something to find. */
     private static int[] syntheticRaster(int width, int height) {
         int[] raster = new int[width * height];
         float cx = width / 2f;
