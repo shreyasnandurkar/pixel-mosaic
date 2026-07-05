@@ -802,35 +802,3 @@ Every decision that was explicitly debated and settled:
 
 ~1 GB heap + 384 MB direct + 200 MB JVM native overhead = **~1.6 GB**. On Oracle Ampere's 24 GB: **~7% utilization**.
 
----
-
-# Part 7 — Implementation Sequence
-
-```
-Week 1 — Backend Core
-  Day 1: JMH benchmark project. Synthetic data. Pack + Sort + Map.
-          Validate Stage 6 latency on real hardware.
-  Day 2: ONNX integration. Singleton session. Stage 5 full pipeline.
-          Validate inference latency and FloatBuffer path.
-  Day 3: Full processing pipeline. Stages 0–7. No WebSocket yet.
-          Integration test with 5 real image pairs.
-  Day 4: WebSocket endpoint. Wire protocol. Chunked streaming.
-          Test with wscat or a minimal HTML page.
-
-Week 2 — Frontend + Integration
-  Day 5: Static HTML/CSS layout. All six states with placeholder content.
-          No JavaScript logic yet.
-  Day 6: State machine + file upload + WebSocket client +
-          chunk reassembly + progress bar.
-  Day 7: Three.js InstancedMesh + vertex/fragment shaders +
-          animation loop. Test with synthetic payload.
-  Day 8: End-to-end integration. Real images through real pipeline
-          into real animation.
-  Day 9: Download button. "How it works" section. Error handling.
-          Polish pass.
-  Day 10: Deploy to Oracle Ampere. Configure Cloudflare.
-           Push frontend to GitHub Pages. Smoke test.
-```
-
----
-
