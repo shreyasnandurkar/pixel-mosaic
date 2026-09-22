@@ -36,23 +36,26 @@ No sign-up and nothing to install. Open the page and pick two images.
 ## ✨ Features
 
 - **GPU particle animation.** Three.js instanced points with custom shaders move every pixel at
-  once. The source holds for a beat, then flies into the target's shape.
+  once — up to two million of them in a single draw call. The source holds for a beat, then flies
+  into the target's shape.
 - **AI subject extraction.** A [U²-Net](https://github.com/xuebinqin/U-2-Net) saliency model on
   ONNX Runtime separates subject from background in both images.
 - **Binary streaming protocol.** Over a WebSocket the server sends a 32-byte header, then
-  12 bytes per particle in 256 KB chunks.
+  7 bytes per particle in 256 KB chunks.
 - **Fair under load.** Two mosaics are built at a time. Everyone else waits in a first-come,
   first-served queue and sees their live position. Sending finished results never holds up
   processing.
 - **Hardened for the public internet.** Oversized and decompression-bomb images are rejected
-  before decoding, and each IP is rate-limited.
-- **Download your mosaic** as a PNG when the animation finishes.
+  before decoding, and each client is rate-limited.
+- **Light on the upload.** Big photos are scaled down in the browser before they are sent, so a
+  10 MB phone picture becomes a few hundred kilobytes.
+- **Download your mosaic** as a pixel-exact PNG when the animation finishes.
 
 ## 🎬 How it works
 
 ```mermaid
 flowchart TB
-    pick["🌐 <b>Browser</b><br/>pick a source and a target"]
+    pick["🌐 <b>Browser</b><br/>pick a source and a target<br/>downscale to ≤2 MP"]
 
     subgraph server["☁️ Backend · Hugging Face Space"]
         queue["Admission queue<br/>2 running · 8 waiting"]
@@ -70,9 +73,13 @@ flowchart TB
     map -- "32-byte header + 256 KB binary chunks" --> anim
 ```
 
-Each pixel is packed into a single 64-bit key: subject/background bit, brightness, hue, then
-x and y. Sorting the keys lines up source and target pixels that belong together, so subject
-pixels fill the target's subject and background pixels fill its background.
+Each pixel is packed into a single 64-bit key — subject/background bit, brightness, hue, a dither
+hash, then x and y — in that order of significance. Sorting the keys is the entire matching
+algorithm: it lines up source and target pixels that belong together, so subject pixels fill the
+target's subject and background pixels fill its background.
+
+The payload is written in the target's raster order, so each particle only needs to carry where it
+came from and what colour it is: two 16-bit source coordinates and an RGB triple, 7 bytes.
 
 <details>
 <summary>Wire protocol</summary>
@@ -94,13 +101,13 @@ sequenceDiagram
         S-->>B: rejected, queue_full (connection closes)
     end
     S-->>B: 32-byte header (dimensions, particle count)
-    S-->>B: particle payload, 12 bytes each, 256 KB chunks
+    S-->>B: particle payload, 7 bytes each, 256 KB chunks
     S-->>B: complete
 ```
 </details>
 
-For the full design (memory budgets, wire protocol, concurrency model and pipeline stages), see
-**[ARCHITECTURE.md](ARCHITECTURE.md)**.
+For the full design — the 64-bit key, the dual-ratio mapping, the shaders, and the concurrency,
+memory and safety budgets — see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
 ## 📏 Limits
 
@@ -108,8 +115,8 @@ For the full design (memory budgets, wire protocol, concurrency model and pipeli
 | --- | --- |
 | Formats | JPEG, PNG, WebP |
 | File size | up to 10 MB per image |
-| Resolution | up to 100 MP; anything over 2 MP is scaled down for processing |
-| Usage | 30 mosaics per hour per IP |
+| Resolution | up to 100 MP; anything over 2 MP is scaled down, in the browser where possible |
+| Usage | 30 mosaics per hour per client |
 
 The backend runs on a free Hugging Face Space. If it has been idle, the first request can take
 up to a minute while it starts.
@@ -118,9 +125,9 @@ up to a minute while it starts.
 
 | Layer | Technology |
 | --- | --- |
-| Frontend | Three.js (WebGL), vanilla JS, GitHub Pages |
+| Frontend | Three.js (WebGL), vanilla ES modules, GitHub Pages |
 | Backend | Java 21, Spring Boot 3.2, WebSocket streaming |
-| AI | U²-Net saliency model on ONNX Runtime |
+| AI | U²-Net (`u2netp`) saliency model on ONNX Runtime |
 | Imaging | TwelveMonkeys + JAI ImageIO (JPEG / PNG / WebP) |
 | Infra | Docker, Hugging Face Spaces, GitHub Actions, Caffeine |
 
@@ -154,9 +161,11 @@ browsers block ES module imports from `file://`.
 
 ```bash
 mvn spring-boot:run        # backend on http://localhost:8080
+mvn test                   # unit + integration tests
 ```
 
-Requires JDK 21. The U²-Net model ships with the repo (`src/main/resources/models/`).
+Requires JDK 21. The U²-Net model ships with the repo (`src/main/resources/models/u2netp.onnx`);
+the tests that need it disable themselves if it is missing.
 </details>
 
 <details>
@@ -166,11 +175,17 @@ Set these in `src/main/resources/application.yml` or as environment variables.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `pixelmosaic.max-concurrent` | `2` | mosaics processed at once |
+| `pixelmosaic.max-concurrent` | `2` | mosaics processed at once; also the buffer-pool size |
 | `pixelmosaic.max-queued` | `8` | requests that can wait in line; more are turned away |
-| `pixelmosaic.rate-limit-per-hour` | `30` | requests per IP per hour |
-| `pixelmosaic.trusted-proxy-hops` | `0` | proxies in front of the app that append to `X-Forwarded-For` |
+| `pixelmosaic.max-streams` | `16` | concurrent payload streams |
+| `pixelmosaic.rate-limit-per-hour` | `30` | requests per client per hour |
+| `pixelmosaic.max-image-bytes` | `10485760` | per-image upload cap |
+| `pixelmosaic.max-pixels` | `2000000` | working resolution per image |
+| `pixelmosaic.trusted-proxy-hops` | `0` | proxies in front of the app that append to `X-Forwarded-For`; `0` uses the connection address |
+| `pixelmosaic.allowed-origins` | localhost + Pages origin | WebSocket and CORS allowlist |
 | `ADMIN_TOKEN` | *(unset)* | enables `GET /admin/stats` (send it in the `X-Admin-Token` header) |
+
+Also available: `GET /health` and `GET /info`.
 </details>
 
 ## 📁 Project layout
@@ -179,11 +194,12 @@ Set these in `src/main/resources/application.yml` or as environment variables.
 frontend/                     static WebGL client (GitHub Pages)
 src/main/java/com/pixelmosaic/
   ├── ws/                     WebSocket handler + binary protocol
-  ├── pipeline/               decode → mask → pack → sort/map
-  ├── admission/              request queue + per-IP rate limiting
+  ├── pipeline/               decode → mask → pack → sort → map
+  ├── admission/              request queue + per-client rate limiting
   ├── stats/                  usage counter
   ├── web/                    health and admin endpoints
   └── config/                 ONNX session, executors, buffer pool
+src/test/java/                unit tests + an end-to-end WebSocket round trip
 .github/workflows/            Pages deploy, Docker publish, keep-awake ping
 Dockerfile                    backend image (Hugging Face Space)
 ARCHITECTURE.md               full technical design

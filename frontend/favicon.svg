@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="120" height="120" fill="none" role="img" aria-label="Pixel Mosaic logo">
+  <rect x="1"    y="1"    width="6.4" height="6.4" rx="1.4" fill="#FF6B6B"/>
+  <rect x="12.8" y="1"    width="6.4" height="6.4" rx="1.4" fill="#FFC24B"/>
+  <rect x="24.6" y="1"    width="6.4" height="6.4" rx="1.4" fill="#38C8E6"/>
+  <rect x="1"    y="12.8" width="6.4" height="6.4" rx="1.4" fill="#4FD08A"/>
+  <rect x="12.8" y="12.8" width="6.4" height="6.4" rx="1.4" fill="#FF6B6B"/>
+  <rect x="24.6" y="12.8" width="6.4" height="6.4" rx="1.4" fill="#9B7BFF"/>
+  <rect x="1"    y="24.6" width="6.4" height="6.4" rx="1.4" fill="#9B7BFF"/>
+  <rect x="12.8" y="24.6" width="6.4" height="6.4" rx="1.4" fill="#38C8E6"/>
+  <rect x="24.6" y="24.6" width="6.4" height="6.4" rx="1.4" fill="#FFC24B"/>
+</svg>
